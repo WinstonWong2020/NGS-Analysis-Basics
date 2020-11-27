@@ -1,0 +1,186 @@
+---
+title: "NGS Analysis Basics_Section4"
+author: "Winston Wong"
+date: "11/24/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+__4. Sequences in Bioconductor__
+
+Sequence Import and Export
+```{r}
+dir.create("data", showWarnings = F)
+
+download.file("ftp://ftp.ncbi.nlm.nih.gov/genomes/archive/old_genbank/Bacteria/Halobacterium_sp_uid217/AE004437.ffn", "data/AE004437.ffn")
+```
+
+Import FASTA file with `readDNAStringSet`
+```{r}
+myseq <- readDNAStringSet("data/AE004437.ffn")
+myseq[1:3]
+```
+
+Subset sequences with regular expression on sequence name field
+```{r}
+sub <- myseq[grep("99.*", names(myseq))] # `.` matches any character, except newline characters,`*` matches zero or more of the preceding group
+length(sub)
+```
+
+Export subsetted sequences to FASTA file
+```{r}
+writeXStringSet(sub, file="./data/AE004437sub.ffn", width=80)
+```
+
+WORKING WITH `XString` Containers
+The `XString stores the different types of biosequences in dedicated containers
+```{r}
+library(Biostrings)
+d <- DNAString("GCATAT-TAC")
+d
+
+d[1:4]
+```
+
+RNA sequences
+```{r}
+r <- RNAString("GCAUAU-UAC")
+r <- RNAString(d) # Converts d to RNAString object
+r
+```
+
+Protein sequences
+```{r}
+p <- AAString("HCWYHH")
+p
+```
+
+Any type of character strings
+```{r}
+b <- BString("I store any set of characters. Other XString objects store only the IUPAC characters.")
+b
+```
+
+WORKING WITH `XStringSet` Containers
+`XStringSet` containers allow storage of many biosequences in one object
+```{r}
+dset <- DNAStringSet(c("GCATATTAC", "AATCGATCC", "GCATATTAC"))
+names(dset) <- c("seq1", "seq2", "seq3") #Assigns names
+dset[1:2]
+```
+
+Important utilities for `XStringSet` containers
+```{r}
+width(dset) #Returns the Length of each sequence
+```
+
+```{r}
+d <-dset[[1]] #the subsetting operator returns a single entry as XString object
+dset2 <- c(dset, dset) #Appends/concatenates two XStringSet objects
+dsetchar <- as.character(dset) #Converts XStringSet to named vector
+dsetone <- unlist(dset) #Collapses many sequences to a single one stored in a DNAString container
+```
+
+Sequence subsetting by positions:
+```{r}
+DNAStringSet(dset, start=c(1,2,3), end=c(4,8,5))
+```
+
+MULTIPLE ALIGNMENT CLASS
+The `XMultipleAlignment` class stores the different types of multiple sequence alignments:
+```{r}
+origMAlign <- readDNAMultipleAlignment(filepath = system.file("extdata", "msx2_mRNA.aln",package = "Biostrings"), format = "clustal")
+origMAlign
+```
+
+BASIC SEQUENCE MANIPULATIONS
+```{r}
+rand <- sapply(1:100,#length of vector
+               function(x) paste(sample(c("A","T","G","C"), #function to be applied to each element of the vector
+               sample(10:30), #maximum and minimum length of sequences
+               replace=T), collapse=""))
+
+randset <-DNAStringSet(rand)
+complement(randset[1:2])
+
+reverse(randset[1:2])
+
+reverseComplement(randset[1:2])
+```
+
+Translate DNA into Protein
+```{r}
+translate(randset[1:2])
+```
+
+PATTERN MATCHING
+Pattern matching with mismatches
+Find pattern matches in reference
+```{r}
+myseq1 <- readDNAStringSet("./data/AE004437.ffn")
+mypos <- matchPattern("ATGGTG", myseq[[1]], max.mismatch=1)
+```
+
+Count only the corresponding matches
+```{r}
+countPattern("ATGGCT", myseq1[[1]], max.mismatch = 1)
+```
+
+Count matches in many sequences
+```{r}
+vcountPattern("ATGGCT", myseq1[1:20], max.mismatch=1)
+```
+
+Results shown in DNAStringSet object
+```{r}
+tmp <- c(DNAStringSet("ATGGTG"), DNAStringSet(mypos))
+```
+
+Return a consensus matrix for query and hits
+```{r}
+consensusMatrix(tmp)[1:4,] #Shows the frequency of each nucleotide at a position in `tmp`
+```
+
+Find all pattern matches in reference
+```{r}
+myvpos <- vmatchPattern("ATGGCT", myseq1, max.mismatch = 1)
+myvpos
+```
+
+```{r}
+Views(myseq1[[1]], start(myvpos[[1]]), end(myvpos[[1]])) #Retrives the result for a single entry
+```
+
+Return all matches
+```{r}
+#`sapply()` takes list, vector or data frame as input and gives output in vector or matrix
+#`seq()` generates regular sequences
+#? seq(along=myseq1) why is it needed?
+sapply(seq(along=myseq1), function(x)
+  as.character(Views(myseq1[[x]], start(myvpos[[x]]), end(myvpos[[x]]))))[1:4]
+```
+
+Pattern matching with regular expression support
+```{r}
+myseq <- DNAStringSet(c("ATGCAGACATAGTG", "ATGAACATAGATCC", "GTACAGATCAC"))
+myseq[grep("^ATG", myseq, perl=T)] #String searching with regular expression support, `^` matches any character that isn't between the brackets
+```
+
+```{r}
+pos1 <- regexpr("AT", myseq) #Searches `myseq` for first match of pattern "AT"
+as.numeric(pos1); attributes(pos1)$match.length #Returns position information of matches
+```
+
+```{r}
+pos2 <- gregexpr("AT", myseq) # Searches `myseq` for all matches of pattern "AT"
+as.numeric(pos2[[1]]); attributes(pos2[[1]])$match.length #Match positions in first sequence
+```
+
+```{r}
+DNAStringSet(gsub("^ATG", "NNN", myseq)) #String substitution with regular expression support
+```
+
+PWM VIEWING AND SEARCHING

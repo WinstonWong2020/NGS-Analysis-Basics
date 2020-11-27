@@ -1,0 +1,102 @@
+---
+title: "NGS Analysis Basics_Sections123"
+author: "Winston Wong"
+date: "11/3/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+`biocLite()` function outdated, used `BiocManager` instead.
+Bioconductor packages needed for tutorial:
+```{r}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+BiocManager::install(version = "3.12")
+```
+
+Following packages were not installed properly: `KernSmooth`, `nlme`. Ran RStudio as administrator and installed packages accordingly.
+```{r}
+BiocManager::install(c("KernSmooth", "nlme"))
+```
+
+__3. Strings in R Base__
+
+Generating a sample sequence data set:
+```{r}
+myseq <- c("ATGCAGACATAGTG", "ATGGAACATAGATCC", "GTACAGATCAC")
+```
+
+String searching with regular expression support: `grep()` searches for instances of `ATG` in the strings provided in `myseq`. `myseq[]` returns the strings found by `grep`.
+```{r}
+myseq[grep("ATG", myseq)]
+```
+
+Searches `myseq` for first match of pattern "AT": `regexpr()` function is used to identify where a pattern is within a character vector, where each element is searched separately; returns position of the 1st match.
+
+```{r}
+pos1 <- regexpr("AT", myseq)
+as.numeric(pos1); attributes(pos1)$match.length #Returns position information of matches
+```
+
+Searches `myseq` for all matches of pattern "AT": `
+```{r}
+pos2 <- gregexpr("AT", myseq)
+as.numeric(pos2[[1]]); attributes(pos2[[1]])$match.length # Returns positions of matches in first sequence
+```
+
+String substitution with regular expression support
+
+```{r}
+gsub("^ATG", "atg", myseq)
+```
+
+Positional parsing
+
+```{r}
+nchar(myseq) #computes length of strings
+
+substring(myseq[1], c(1,3), c(2,5)) # Positional parsing of several fragments from one string
+
+substring(myseq, c(1,4,7), c(2,6,10)) # Positional parsing of many strings (first string: 1-2, second string 4-6, third string 7-10)
+```
+
+RANDOM SEQUENCE GENERATION
+
+Random DNA sequences of any length
+```{r}
+rand <- sapply(1:100,#length of vector
+               function(x) paste(sample(c("A","T","G","C"), #function to be applied to each element of the vector
+               sample(10:30), #maximum and minimum length of sequences
+               replace=T), collapse=""))
+rand[1:3] #Accesses first 3 sequences that are generated out of 100
+```
+
+Count identical sequences
+```{r}
+table(c(rand[1:4], rand[1])) #sequences within range ordered alphabetically, if second arguement is in range sequence appears with "2" beneath?
+table(c(rand[1:4], rand[1]))
+```
+
+Extract reads from reference
+```{r}
+#installing package `Biostrings`
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("Biostrings")
+
+library(Biostrings)
+library(dplyr)
+
+ref <- sample(c("A","T","G","C"), 100000, replace=T) %>% paste(collapse="") %>% DNAString()
+
+randstart <- sample(1:(length(ref)-15), 1000, replace = F) # sample() randomly reorders the elements passed as the first arguement 
+randreads <- Views(ref, start = randstart, end = NULL, width=15)
+rand_set <- DNAStringSet(randreads)
+unlist(rand_set) #unlist a list of vectors into a single vector
+
+```
+
