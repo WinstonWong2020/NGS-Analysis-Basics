@@ -184,3 +184,36 @@ DNAStringSet(gsub("^ATG", "NNN", myseq)) #String substitution with regular expre
 ```
 
 PWM VIEWING AND SEARCHING
+Plot with `seqLogo`
+```{r}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("seqLogo")
+
+library(seqLogo)
+
+pwm_run <- PWM(DNAStringSet(c("GCT", "GGT", "GCA")))
+pwm_run
+
+#`seqLogo` takes the alphabet*width position weight matrix of a sequence motif and plots the corresponding sequence logo
+#`t()` transposes the rows and columns of matrices
+
+seqLogo(t(t(pwm_run)*1/colSums(pwm_run)))
+```
+
+Plot with `ggseqlogo`
+The `ggseqlogo` package provides many customization options for plotting sequence logos. It also supports various alphabets including sequence logos for amino acid sequences
+```{r}
+library(ggplot2); library(ggseqlogo)
+
+pwm_run2 <- PWM(DNAStringSet(c("GCT","GGT","GCA")))
+ggseqlogo(pwm_run2)
+```
+
+Search sequence for PWM matches with score better than `min.score`
+```{r}
+chr <- DNAString("AAAGCTAAAGGTAAAGCAAAA")
+matchPWM(pwm_run2, chr, min.score=0.9)
+```
+
