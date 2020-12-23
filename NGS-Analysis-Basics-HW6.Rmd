@@ -1,0 +1,83 @@
+---
+title: "NGS-Analysis-Basics-HW6.Rmd"
+author: "Winston Wong"
+date: "12/18/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+demultiplex <- function(x, barcode, nreads) {
+  f <- FastqStreamer(x, nreads)
+  while(length(fq <- yield(f))) {
+    for(i in barcode) {
+      pattern <- paste("^", i, seq="")
+      fqsub <- fq[grepl(pattern, sread(fq))]
+      cuttoff <- 30
+      cutoff <- rawToChar(as.raw(cutoff+33))
+      sread(trimTails(fq, k=2, a=cutoff, successive=F))
+      if(length(fqsub) >0) {
+        writeFastq(fqsub, paste(x, i , sep="_"), mode="a", compress=F)
+      }
+    }
+  }
+  close(f)
+}
+demultiplex(x=fastq[1], barcode=c("TT","AA","GG"), nreads=50)
+```
+
+HW6b
+Task 1: Extract gene ranges, parse their sequences from genome and translate them into proteins
+```{r}
+download.file("ftp://ftp.ncbi.nlm.nih.gov/genomes/archive/old_genbank/Bacteria/Halobacterium_sp_uid217/AE004437.gff", "data/AE004437.gff")
+download.file("ftp://ftp.ncbi.nlm.nih.gov/genomes/archive/old_genbank/Bacteria/Halobacterium_sp_uid217/AE004437.fna", "data/AE004437.fna")
+
+chr <- readDNAStringSet("data/AE004437.fna")
+gff <- import.gff("data/AE004437.gff")
+
+#Extract gene ranges
+gffgene <- gff[values(gff)[,"type"]=="gene"]
+gene <- DNAStringSet(Views(chr[[1]], IRanges(start(gffgene), end(gffgene))))
+
+#Assigning locus_tags to gene ranges
+names(gene) <- values(gffgene)[,"locus_tag"]
+
+#Translating "+" parsed sequences from genome
+pos <- values(gffgene[strand(gffgene)=="+"])[, "locus_tag"]
+p1 <- translate(gene[names(gene) %in% pos])
+names(p1) <- names(gene[names(gene) %in% pos])
+
+#Translating "-" parsed sequences from genome
+neg <- values(gffgene[strand(gffgene)=="-"])[, "locus_tag"]
+p2 <- translate(reverseComplement(gene[names(gene) %in% neg]))
+names(p2) <- names(gene[names(gene) %in% neg])
+
+#Writing translated proteins to a fasta file
+writeXStringSet(c(p1, p2), "./data/mypep.fasta")
+```
+
+Task 2: Reduce overlapping genes and parse their sequences from genome
+```{r}
+gffgene_OvL <- gff[values(gff)[,"type"]=="gene"] #Extracting gene ranges
+gene_OvL <- DNAStringSet(Views(chr[[1]], IRanges(start(gffgene_OvL), end(gffgene_OvL))))
+OvL <- subsetByOverlaps(gffgene_OvL, gffgene_OvL) #Return only overlapping ranges
+
+names(gene_OvL) <- values(gffgene_OvL)[,"locus_tag"] #Assigning locus_tags to gene ranges
+
+pos_OvL <- values(OvL[strand(OvL)=="+"])[, "locus_tag"]
+p1_OvL <- (gene_OvL[names(gene_OvL) %in% pos_OvL])
+
+```
+
+Task 3: Generate intergenic ranges and parse their sequences from genome
+```{r}
+library(rtracklayer); library(GenomicRanges); library(Rsamtools)
+source("http://faculty.ucr.edu/~tgirke/Documents/R_BioCond/My_R_Scripts/gffMod.R")
+
+gff <- import.gff("data/AE004437.gff", asRangedData=FALSE)
+gffmod <- getFeat(x=gff, format="gff")
+```
+

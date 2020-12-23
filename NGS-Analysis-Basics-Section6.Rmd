@@ -1,0 +1,179 @@
+---
+title: "NGS-Analysis-Basics-Section6"
+author: "Winston Wong"
+date: "12/6/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+__6. Range Operations__
+Import Data Objects for Range Operations
+
+`IRanges`: stores range data only (IRanges library)
+
+`GRanges`: stores ranges and annotations (GenomicRanges library)
+
+`GRangesList`: list version of GRanges container (GenomicRanges library)
+
+RANGE DATA ARE STORED IN `IRanges` and `GRanges` CONTAINERS
+
+Construct `GRanges` Object
+```{r}
+library(GenomicRanges); library(rtracklayer)
+gr <- GRanges(seqnames = Rle(c("chr1", "chr2", "chr1", "chr3"), c(1,3,2,4)), ranges = IRanges(1:10, end = 7:16, names = head(letters, 10)), strand = Rle(strand(c("-","+", "*", "+", "-")), c(1,2,2,3,2)), score = 1:10, GC = seq(1, 0, length = 10)) #Example of creating a GRanges object with its constructor function.
+```
+
+Import GFF into `GRanges` Object
+```{r}
+gff <- import.gff("http://faculty.ucr.edu/~tgirke/Documents/R_BioCond/Samples/gff3.gff") #Imports a simplified GFF 3 genome annotation file.
+seqlengths(gff) <- end(ranges(gff[which(values(gff)[,"type"]=="chromosome"),]))
+names(gff) <- 1:length(gff) #Assings names to corresponding slot
+gff[1:4,]
+
+```
+
+Coerce `GRanges` object to `data.frame`
+```{r}
+as.data.frame(gff)[1:4, 1:7]
+```
+
+Coerce `Granges` to `RangedData` object and vice versa
+```{r}
+gff_rd <- as(gff, "RangedData")
+gff_gr <- as(gff_rd, "GRanges")
+```
+
+UTILITIES FOR RANGE CONTAINERS
+Accessor and subsetting methods for GRanges objects
+Subsetting and replacement
+```{r}
+gff[1:4]
+```
+
+```{r}
+gff[1:4, c("type", "ID")]
+```
+
+```{r}
+gff[2] <- gff[3] #Why would you need to do this?
+```
+
+GRanges objects can be concatenated with the `c` function
+```{r}
+c(gff[1:2], gff[401:402])
+```
+
+Accessor functions
+```{r}
+seqnames(gff)
+```
+
+```{r}
+ranges(gff)
+```
+
+```{r}
+strand(gff)
+```
+
+```{r}
+seqlengths(gff) 
+```
+
+```{r}
+start(gff[1:4])
+```
+
+```{r}
+end(gff[1:4])
+```
+
+```{r}
+width(gff[1:4])
+```
+
+Accessing metadata component
+```{r}
+values(gff) #or elementMetadata(gff)
+```
+
+```{r}
+values(gff)[, "type"][1:20] #accessing first 20 entries in "type" column"
+```
+
+```{r}
+gff[values(gff)[, "type"] == "gene"]
+```
+
+Useful utilities for GRanges objects
+Remove chromosome ranges
+```{r}
+gff <- gff[values(gff)$type != "chromosome"]
+```
+
+Erase the strand information
+```{r}
+strand(gff) <- "*"
+```
+
+Collapses overlapping ranges to continious ranges.
+```{r}
+reduce(gff)
+```
+
+Return uncovered regions
+```{r}
+gaps(gff)
+```
+
+More intuitive way to get uncovered regions
+```{r}
+setdiff(as(seqinfo(gff), "GRanges"), gff)
+```
+
+Return disjoint ranges
+```{r}
+disjoin(gff)
+```
+
+Returns coverage of ranges
+```{r}
+coverage(gff)
+```
+
+Return the index pairings for overlapping ranges
+```{r}
+findOverlaps(gff, gff[1:4])
+```
+
+Counts overlapping ranges
+```{r}
+countOverlaps(gff, gff[1:4])[1:40]
+```
+
+Return only overlapping ranges
+```{r}
+subsetByOverlaps(gff, gff[1:4])
+```
+
+GRangesList OBJECTS
+```{r}
+sp <- split(gff, seq(along=gff)) #Stores every range in separate component of a GRangesList object
+split(gff, seqnames(gff)) #Stores ranges of each chromosome in separate component.
+```
+
+```{r}
+unlist(sp) #Returns data as GRanges object
+```
+
+```{r}
+sp[1:4, "type"] #Subsetting of GRangesList objects is similar to GRanges objects.
+```
+
+```{r}
+lapply(sp[1:4], length) #Looping over GRangesList objects similar to lists
+```
+

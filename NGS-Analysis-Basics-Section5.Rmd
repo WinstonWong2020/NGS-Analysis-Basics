@@ -47,3 +47,144 @@ phreda
 as.integer(charToRaw(phreda))-33
 ```
 
+Construct `QualityScaledDNAStringSet` from scratch
+```{r}
+dset <- DNAStringSet(sapply(1:100, function (x) paste(sample(c("A","T","G","C"), 20, replace=T), collapse="")))
+myqlist <- lapply(1:100, function(X) sample(1:40, 20, replace=T)) #Creates random Phred score list
+myqual <- sapply(myqlist, function(x) toString(PhredQuality(x))) # converts integer scores into ASCII characters.
+myqual <- PhredQuality(myqual) #Converts to a PhredQuality object.
+dsetq1 <- QualityScaledDNAStringSet(dset,myqual) #Combines DNAStringSet and quality data in QualityScaledDNAStringSet object
+dsetq1[1:2]
+```
+
+PROCESSING FASTQ Files with ShortRead
+The following explains the basic usage of `ShortReadQ` objects. 
+```{r}
+BiocManager::install("ShortRead")
+
+library(ShortRead)
+download.file("http://faculty.ucr.edu/~tgirke/HTML_Presentations/Manuals/Workshop_Dec_6_10_2012/Rsequences/data.zip", "data.zip")
+
+fastq <- list.files("C:/Users/winst/Desktop/NGS-Analysis-Basics/data", "*.fastq$"); fastq <- paste("data/", fastq, sep="")
+names(fastq) <- paste("flowcell6_lane", 1:length(fastq), sep="_")
+
+
+fq <- readFastq("C:/Users/winst/Desktop/NGS-Analysis-Basics/data", "SRR038845")
+
+```
+
+```{r}
+#Counts numbers of reads in FASTQ files
+countLines(dirPath="./data", pattern=".fastq$")/4
+```
+
+```{r}
+id(fq)[1] #Returns ID field
+```
+
+```{r}
+sread(fq)[1] #Returns sequence
+```
+
+```{r}
+quality(fq)[1] #Returns Phred scores
+```
+
+```{r}
+as(quality(fq), "matrix")[1:4, 1:12] #Coerces Phred scores to numeric matrix
+```
+
+```{r}
+ShortReadQ(sread=sread(fq), quality=quality(fq), id=id(fq)) #Constructs a ShortReadQ from components
+```
+
+FASTQ QUALITY REPORTS
+Using `systemPipeR`
+The following `seeFastq` and `seeFastqPlot` functions generate and plot a series of useful quality statistics for a set of FASTQ files.
+```{r}
+BiocManager::install("systemPipeR")
+library(systemPipeR)
+
+fqlist <- seeFastq(fastq=fastq, batchsize=800, klength=8) #For real data batchsize to at least 10^5
+seeFastqPlot(fqlist)
+```
+
+Using `ShortRead`
+The `ShortRead` package contains several FASTQ quality reporting functions.
+```{r}
+sp <- SolexaPath(system.file('extdata', package='ShortRead'))
+fl <- file.path(analysisPath(sp), "s_1_sequence.txt")
+fls <- c(fl,fl)
+coll<- QACollate(QAFastqSource(fls), QAReadQuality(), QAAdapterContamination(),
+                 QANucleotideUse(), QAQualityUse(), QASequenceUse(), 
+                 QAFrequentSequence(n=10), QANucleotideByCycle(), QAQualityByCycle())
+
+x <- qa2(coll, verbose=TRUE)
+res <- report(x)
+if(interactive())
+  browseURL(res)
+```
+
+FILTERING AND TRIMMING FASTQ FILES With ShortRead
+Adaptor trimming
+```{r}
+fqtrim <- trimLRPatterns(Rpattern="GCCCGGGTAA", subject=fq)
+sread(fq)[1:2] # before trimming
+```
+
+```{r}
+sread(fqtrim)[1:2] #After trimming
+```
+
+Read counting and duplicate removal
+```{r}
+tables(fq)$distribution #Counts read occurences
+```
+
+```{r}
+sum(srduplicated(fq)) #Identifies duplicated reads
+```
+
+```{r}
+fq[!srduplicated(fq)] #Identifies unduplicated reads
+```
+
+Trimming low quality tails
+```{r}
+cutoff <- 30
+cutoff <- rawToChar(as.raw(cutoff+33))
+sread(trimTails(fq, k=2, a=cutoff, successive=FALSE))[1:2] #successive=FALSE vs. TRUE
+```
+
+Removal of reads with Phred scores below a threshold value
+```{r}
+cutoff <- 30
+qcount <- rowSums(as(quality(fq), "matrix") <= 20) #what does this code do?
+fq[qcount == 0] #Number of reads where all Phred scores >=20
+```
+
+Removal of reads with x Ns and/or low complexity segments
+```{r}
+filter1 <- nFilter(threshold=1) # Keeps only reads without Ns
+filter2 <- polynFilter(threshold=20, nuc=c("A","T","G","C")) #Removes reads with >= 20 of one nucleotide
+filter <- compose(filter1, filter2)
+fq[filter(fq)]
+```
+
+MEMORY EFFICIENT FASTQ PROCESSING
+Streaming through FASTA files with `FastqStreamer` and random sampling reads with `FastqSampler`
+```{r}
+fq <- yield(FastqStreamer(fastq[1], 50)) #Imports first 50 reads
+fq <- yield(FastqSampler(fastq[1], 50)) #Random samples 50 reads
+```
+
+Streaming through a FASTQ file while applying filtering/trimming functions and writing the results to a new file here `SRR038845.fastq_sub` in `data` directory
+```{r}
+f <- FastqStreamer(fastq[1], 50)
+while(length(fq <- yield(f))) {
+  fqsub <- fq[grepl("^TT", sread(fq))]
+  writeFastq(fqsub, paste(fastq[1], "sub", sep="_"), mode="a", compress=FALSE)
+}
+close(f)
+```
+
